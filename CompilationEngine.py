@@ -196,17 +196,18 @@ class CompilationEngine:
         :return:
         """
         statement_reg = "let|if|while|do|return"
-        while self.peek_token(statement_reg):
+        if self.peek_token(statement_reg):
             if self.peek_token("let"):
                 self.compile_let()
-            if self.peek_token("if"):
+            elif self.peek_token("if"):
                 self.compile_if()
-            if self.peek_token("while"):
+            elif self.peek_token("while"):
                 self.compile_while()
-            if self.peek_token("do"):
+            elif self.peek_token("do"):
                 self.compile_do()
-            if self.peek_token("return"):
+            elif self.peek_token("return"):
                 self.compile_return()
+            self.compile_statements()
 
     def compile_do(self):
         """
@@ -265,11 +266,20 @@ class CompilationEngine:
 
         def comp_while():
             self.eat("while")
+            loop_label = self.__get_label()
+            exit_label = self.__get_label()
+            self.vm_writer.write_label(loop_label)
             self.eat(CompilationEngine._OPEN_PARENTHESIS)
+            # Compute ~condition
             self.compile_expression()
+            self.vm_writer.write_arithmetic("neg")
+            # if ~condition exit loop
+            self.vm_writer.write_if(exit_label)
             self.eat(CompilationEngine._CLOSE_PARENTHESIS)
             self.eat("{")
             self.compile_statements()
+            self.vm_writer.write_goto(loop_label)
+            self.vm_writer.write_label(exit_label)
             self.eat("}")
 
         self.wrap("whileStatement", comp_while)
