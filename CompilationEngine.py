@@ -83,7 +83,8 @@ class CompilationEngine:
         self.symbol_table.define(name, var_type, kind)
         if self.peek_token(","):
             self.eat(",")
-            self.__var_declare(var_type, kind)
+            return 1 + self.__var_declare(var_type, kind)
+        return 1
 
     def __compile_type(self, for_function):
         """
@@ -112,16 +113,19 @@ class CompilationEngine:
             name = self.__compile_name()
             self.eat(CompilationEngine._OPEN_PARENTHESIS)
             para_num = self.compile_parameter_list(kind)
-            self.vm_writer.write_function("{}.{}".format(self.class_name,
-                                                         name), para_num)
+            # self.vm_writer.write_function("{}.{}".format(self.class_name,
+            #                                              name), para_num)
             self.eat(CompilationEngine._CLOSE_PARENTHESIS)
-            subroutine_body(sub_type)
+            subroutine_body(name)
             # self.wrap("subroutineBody", subroutine_body)
 
-        def subroutine_body(sub_type):
+        def subroutine_body(name):
             self.eat("{")
+            num_locals = 0
             if self.peek_token("var"):
-                self.compile_var_dec()
+                num_locals = self.compile_var_dec()
+            self.vm_writer.write_function("{}.{}".format(self.class_name,
+                                                         name), num_locals)
             self.compile_statements()
             # if sub_type == "void":
             #     self.vm_writer.write_push("constant", 0)
@@ -162,10 +166,9 @@ class CompilationEngine:
         elif kind == "constructor":
             self.__handle_constructor()
         type_reg = r"int|char|boolean|[A-Za-z_]\w*"
-        para_num = 0
         if self.peek_token(type_reg):
-            para_num += self.__params()
-        return para_num
+            return self.__params()
+        return 0
 
     def __params(self):
         var_type = self.__compile_type(False)
@@ -185,10 +188,11 @@ class CompilationEngine:
         # self.wrap("varDec", self.__comp_var_dec)
         kind = self.eat("var")
         var_type = self.__compile_type(False)
-        self.__var_declare(var_type, kind)
+        local_num = self.__var_declare(var_type, kind)
         self.eat(";")
         if self.peek_token("var"):
-            self.compile_var_dec()
+            return local_num + self.compile_var_dec()
+        return local_num
 
     def compile_statements(self):
         """
@@ -365,9 +369,11 @@ class CompilationEngine:
             # Handle String constant
             elif curr_type == STRING_CONST:
                 self.__handle_string_constant(val)
+                self.__advance_token()
             # Handle Keyword constant
             elif curr_type == KEYWORD:
                 self.__handle_keyword_constant(val)
+                self.__advance_token()
             # Case: token is a varName or a subroutineName
             elif curr_type == IDENTIFIER:
                 self.__handle_identifier()
