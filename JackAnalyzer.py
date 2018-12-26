@@ -8,8 +8,9 @@ def analyze_dir(arg):
     dir_path = Path(arg)
     for file in os.listdir(arg):
         if file.endswith(".jack"):
-            file_path = dir_path / file
-            analyze_file(str(file_path))
+            file_path = str(dir_path / file)
+
+            analyze_file(file_path)
 
 
 def analyze_file(address):
@@ -25,10 +26,6 @@ def main():
             analyze_dir(arg)
         else:
             analyze_file(arg)
-            i = 0
-            # for token in tokenizer.get_elements():
-            #     print(str(i) + ": " + token)
-            #     i += 1
 
 
 if __name__ == '__main__':

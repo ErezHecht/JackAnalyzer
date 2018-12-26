@@ -1,7 +1,8 @@
-STATIC = "Static"
-FIELD = "Field"
-ARGUMENT = "Argument"
-VAR = "Var"
+STATIC = "static"
+FIELD = "field"
+ARGUMENT = "argument"
+VAR = "var"
+LOCAL = "local"
 TYPE_INDEX = 0
 KIND_INDEX = 1
 NUMBER_INDEX = 2
@@ -35,27 +36,28 @@ class SymbolTable:
         :param var_type: the type of the variable
         :param kind: Static, Field, arg or var
         """
-
-        if kind == STATIC:
-            self.class_scope_table.update({name:
-                                               [var_type, kind,
-                                                self.static_index]})
-            self.static_index += 1
-        elif kind == FIELD:
-            self.class_scope_table.update({name:
-                                               [var_type, kind,
-                                                self.field_index]})
-            self.field_index += 1
-        elif kind == ARGUMENT:
-            self.subroutine_scope_table.update({name:
-                                                    [var_type, kind,
-                                                     self.arg_index]})
-            self.arg_index += 1
-        elif kind == VAR:
-            self.subroutine_scope_table.update({name:
-                                                    [var_type, kind,
-                                                     self.var_index]})
-            self.var_index += 1
+        if name not in self.class_scope_table and name not in \
+                self.subroutine_scope_table:
+            if kind == STATIC:
+                self.class_scope_table.update({name:
+                                                   [var_type, kind,
+                                                    self.static_index]})
+                self.static_index += 1
+            elif kind == FIELD:
+                self.class_scope_table.update({name:
+                                                   [var_type, kind,
+                                                    self.field_index]})
+                self.field_index += 1
+            elif kind == ARGUMENT:
+                self.subroutine_scope_table.update({name:
+                                                        [var_type, kind,
+                                                         self.arg_index]})
+                self.arg_index += 1
+            elif kind == VAR:
+                self.subroutine_scope_table.update({name:
+                                                        [var_type, LOCAL,
+                                                         self.var_index]})
+                self.var_index += 1
 
     def var_count(self, kind):
         """
