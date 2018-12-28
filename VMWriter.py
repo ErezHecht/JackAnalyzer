@@ -1,6 +1,6 @@
 class VMWriter:
     _OP_DICT = {"+": "add", "-": "sub", "=": "eq", "&": "and", "|": "or",
-                ">": "gt", "<": "lt", "~": "not"}
+                ">": "gt", "<": "lt", "~": "not", "neg": "neg"}
 
     def __init__(self, out_address):
         self.out_address = out_address
@@ -21,8 +21,6 @@ class VMWriter:
             self.write_call("Math.multiply", 2)
         elif command == "/":
             self.write_call("Math.divide", 2)
-        elif command == "neg":
-            self.output += "neg\n"
         else:
             self.output += "{}\n".format(VMWriter._OP_DICT[command])
 

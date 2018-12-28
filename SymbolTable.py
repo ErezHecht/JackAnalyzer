@@ -3,6 +3,7 @@ FIELD = "field"
 ARGUMENT = "argument"
 VAR = "var"
 LOCAL = "local"
+THIS = "this"
 TYPE_INDEX = 0
 KIND_INDEX = 1
 NUMBER_INDEX = 2
@@ -45,7 +46,7 @@ class SymbolTable:
                 self.static_index += 1
             elif kind == FIELD:
                 self.class_scope_table.update({name:
-                                                   [var_type, kind,
+                                                   [var_type, THIS,
                                                     self.field_index]})
                 self.field_index += 1
             elif kind == ARGUMENT:

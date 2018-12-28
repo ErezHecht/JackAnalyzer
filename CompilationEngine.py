@@ -108,13 +108,11 @@ class CompilationEngine:
 
         def subroutine_dec():
             kind = self.eat(sub_regex)
-            sub_type = self.__compile_type(True)
+            self.__compile_type(True)
             # subroutine name
             name = self.__compile_name()
             self.eat(CompilationEngine._OPEN_PARENTHESIS)
-            para_num = self.compile_parameter_list(kind)
-            # self.vm_writer.write_function("{}.{}".format(self.class_name,
-            #                                              name), para_num)
+            self.compile_parameter_list(kind)
             self.eat(CompilationEngine._CLOSE_PARENTHESIS)
             subroutine_body(name)
             # self.wrap("subroutineBody", subroutine_body)
@@ -163,8 +161,6 @@ class CompilationEngine:
         # self.wrap("parameterList", self.__params)
         if kind == "method":
             self.symbol_table.define("this", self.class_name, "argument")
-        elif kind == "constructor":
-            self.__handle_constructor()
         type_reg = r"int|char|boolean|[A-Za-z_]\w*"
         if self.peek_token(type_reg):
             return self.__params()
@@ -240,10 +236,11 @@ class CompilationEngine:
         self.eat("let")
         name = self.__compile_name()
         is_array = False
-        self.__write_push(name)
+
         # Determine [expression]
         if self.peek_token(CompilationEngine._OPEN_BRACKET):
             is_array = True
+            self.__write_push(name)
             self.__handle_array()
         self.eat("=")
         self.compile_expression()
@@ -267,26 +264,41 @@ class CompilationEngine:
         Compiles a while statement.
         :return:
         """
+        self.eat("while")
+        loop_label = self.__get_label("WHILE_START")
+        exit_label = self.__get_label("WHILE_END")
+        self.vm_writer.write_label(loop_label)
+        self.eat(CompilationEngine._OPEN_PARENTHESIS)
+        # Compute ~condition
+        self.compile_expression()
+        self.vm_writer.write_arithmetic("~")
+        # if ~condition exit loop
+        self.vm_writer.write_if(exit_label)
+        self.eat(CompilationEngine._CLOSE_PARENTHESIS)
+        self.eat("{")
+        self.compile_statements()
+        self.vm_writer.write_goto(loop_label)
+        self.vm_writer.write_label(exit_label)
+        self.eat("}")
+        # def comp_while():
+        #     self.eat("while")
+        #     loop_label = self.__get_label("WHILE_START")
+        #     exit_label = self.__get_label("WHILE_END")
+        #     self.vm_writer.write_label(loop_label)
+        #     self.eat(CompilationEngine._OPEN_PARENTHESIS)
+        #     # Compute ~condition
+        #     self.compile_expression()
+        #     self.vm_writer.write_arithmetic("~")
+        #     # if ~condition exit loop
+        #     self.vm_writer.write_if(exit_label)
+        #     self.eat(CompilationEngine._CLOSE_PARENTHESIS)
+        #     self.eat("{")
+        #     self.compile_statements()
+        #     self.vm_writer.write_goto(loop_label)
+        #     self.vm_writer.write_label(exit_label)
+        #     self.eat("}")
 
-        def comp_while():
-            self.eat("while")
-            loop_label = self.__get_label()
-            exit_label = self.__get_label()
-            self.vm_writer.write_label(loop_label)
-            self.eat(CompilationEngine._OPEN_PARENTHESIS)
-            # Compute ~condition
-            self.compile_expression()
-            self.vm_writer.write_arithmetic("neg")
-            # if ~condition exit loop
-            self.vm_writer.write_if(exit_label)
-            self.eat(CompilationEngine._CLOSE_PARENTHESIS)
-            self.eat("{")
-            self.compile_statements()
-            self.vm_writer.write_goto(loop_label)
-            self.vm_writer.write_label(exit_label)
-            self.eat("}")
-
-        self.wrap("whileStatement", comp_while)
+        # self.wrap("whileStatement", comp_while)
 
     def compile_return(self):
         """
@@ -312,30 +324,55 @@ class CompilationEngine:
         Compiles an if statement, possibly with a trailing else clause.
         :return:
         """
-
-        def comp_if():
-            self.eat("if")
-            self.eat(CompilationEngine._OPEN_PARENTHESIS)
-            self.compile_expression()
-            self.vm_writer.write_arithmetic("neg")
-            self.eat(CompilationEngine._CLOSE_PARENTHESIS)
+        self.eat("if")
+        self.eat(CompilationEngine._OPEN_PARENTHESIS)
+        # ~cond
+        self.compile_expression()
+        # self.vm_writer.write_arithmetic("~")
+        self.eat(CompilationEngine._CLOSE_PARENTHESIS)
+        self.eat("{")
+        if_true = self.__get_label("IF_TRUE")
+        self.vm_writer.write_if(if_true)
+        if_false = self.__get_label("IF_FALSE")
+        self.vm_writer.write_goto(if_false)
+        self.vm_writer.write_label(if_true)
+        self.compile_statements()
+        if_end = self.__get_label("IF_END")
+        self.vm_writer.write_goto(if_end)
+        self.eat("}")
+        # Handle else:
+        self.vm_writer.write_label(if_false)
+        if self.peek_token("else"):
+            self.eat("else")
             self.eat("{")
-            l_one = self.__get_label()
-            self.vm_writer.write_if(l_one)
             self.compile_statements()
-            l_two = self.__get_label()
-            self.vm_writer.write_goto(l_two)
             self.eat("}")
-            # Handle else:
-            self.vm_writer.write_label(l_one)
-            if self.peek_token("else"):
-                self.eat("else")
-                self.eat("{")
-                self.compile_statements()
-                self.eat("}")
-            self.vm_writer.write_label(l_two)
+        self.vm_writer.write_label(if_end)
+        #
+        # def comp_if():
+        #     self.eat("if")
+        #     self.eat(CompilationEngine._OPEN_PARENTHESIS)
+        #     # ~cond
+        #     self.compile_expression()
+        #     # self.vm_writer.write_arithmetic("~")
+        #     self.eat(CompilationEngine._CLOSE_PARENTHESIS)
+        #     self.eat("{")
+        #     l_one = self.__get_label("IF_FALSE")
+        #     self.vm_writer.write_if(l_one)
+        #     self.compile_statements()
+        #     l_two = self.__get_label("IF_END")
+        #     self.vm_writer.write_goto(l_two)
+        #     self.eat("}")
+        #     # Handle else:
+        #     self.vm_writer.write_label(l_one)
+        #     if self.peek_token("else"):
+        #         self.eat("else")
+        #         self.eat("{")
+        #         self.compile_statements()
+        #         self.eat("}")
+        #     self.vm_writer.write_label(l_two)
 
-        self.wrap("ifStatement", comp_if)
+        # self.wrap("ifStatement", comp_if)
 
     def compile_expression(self):
         """
@@ -384,18 +421,21 @@ class CompilationEngine:
                 self.eat(CompilationEngine._CLOSE_PARENTHESIS)
             # Case: unaryOp term
             elif self.peek_token("-|~"):
-                command = self.eat("-|~")
-                self.compile_term()
-                if command == "-":
-                    self.vm_writer.write_arithmetic("neg")
-                else:
-                    self.vm_writer.write_arithmetic(command)
+                self.__handle_unary_op()
             else:
                 print("Error: Incorrect Term")
                 exit(-1)
 
         term()
         # self.wrap("term", term)
+
+    def __handle_unary_op(self):
+        command = self.eat("-|~")
+        self.compile_term()
+        if command == "-":
+            self.vm_writer.write_arithmetic("neg")
+        else:
+            self.vm_writer.write_arithmetic(command)
 
     def __handle_identifier(self):
         """
@@ -432,15 +472,10 @@ class CompilationEngine:
         """
         if word == "this":
             self.vm_writer.write_push("pointer", 0)
-        elif word == "false" or word == "null":
-            self.vm_writer.write_push(CONSTANT, 0)
-        elif word == "true":
-            self.vm_writer.write_push(CONSTANT, 1)
-            self.vm_writer.write_arithmetic("neg")
         else:
-            print("Error: Unsupported Keyword constant: {}. Use this,null,"
-                  "true, false only.")
-            exit(-1)
+            self.vm_writer.write_push(CONSTANT, 0)
+            if word == "true":
+                self.vm_writer.write_arithmetic("~")
 
     def __var_name_array(self):
         """
@@ -534,10 +569,10 @@ class CompilationEngine:
             # self.write(self.curr_token.get_xml_wrap())
             self.__advance_token()
             return ctoken
-        else:
-            # if self.tokenizer.get_current_token() != token:
-            print("Error: Expected " + token)
-            exit(-1)
+            # else:
+            #     # if self.tokenizer.get_current_token() != token:
+            #     print("Error: Expected " + token)
+            #     exit(-1)
 
     def peek_token(self, compare_next):
         """
@@ -567,9 +602,9 @@ class CompilationEngine:
         if self.tokenizer.has_more_tokens():
             self.curr_token = self.tokenizer.get_current_token()
 
-    def __get_label(self):
+    def __get_label(self, label):
         self.label_count += 1
-        return "L{}".format(str(self.label_count))
+        return "{}_{}".format(label, str(self.label_count))
 
     def __write_pop(self, name):
         self.vm_writer.write_pop(self.symbol_table.kind_of(name),
