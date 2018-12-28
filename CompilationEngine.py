@@ -83,8 +83,7 @@ class CompilationEngine:
         self.symbol_table.define(name, var_type, kind)
         if self.peek_token(","):
             self.eat(",")
-            return 1 + self.__var_declare(var_type, kind)
-        return 1
+            self.__var_declare(var_type, kind)
 
     def __compile_type(self, for_function):
         """
@@ -105,41 +104,60 @@ class CompilationEngine:
         """
         sub_regex = "(constructor|function|method)"
         self.symbol_table.start_subroutine()
+        kind = self.eat(sub_regex)
+        self.__compile_type(True)
+        # subroutine name
+        name = self.__compile_name()
+        self.eat(CompilationEngine._OPEN_PARENTHESIS)
+        self.compile_parameter_list(kind)
+        self.eat(CompilationEngine._CLOSE_PARENTHESIS)
+        self.eat("{")
+        if self.peek_token("var"):
+            self.compile_var_dec()
+        num_locals = self.symbol_table.var_count("local")
+        self.vm_writer.write_function("{}.{}".format(self.class_name,
+                                                     name), num_locals)
+        self.__set_pointer(kind)
+        self.compile_statements()
+        self.eat("}")
 
-        def subroutine_dec():
-            kind = self.eat(sub_regex)
-            self.__compile_type(True)
-            # subroutine name
-            name = self.__compile_name()
-            self.eat(CompilationEngine._OPEN_PARENTHESIS)
-            self.compile_parameter_list(kind)
-            self.eat(CompilationEngine._CLOSE_PARENTHESIS)
-            subroutine_body(name)
-            # self.wrap("subroutineBody", subroutine_body)
-
-        def subroutine_body(name):
-            self.eat("{")
-            num_locals = 0
-            if self.peek_token("var"):
-                num_locals = self.compile_var_dec()
-            self.vm_writer.write_function("{}.{}".format(self.class_name,
-                                                         name), num_locals)
-            self.compile_statements()
-            # if sub_type == "void":
-            #     self.vm_writer.write_push("constant", 0)
-            self.eat("}")
-
+        # def subroutine_dec():
+        #     kind = self.eat(sub_regex)
+        #     self.__compile_type(True)
+        #     # subroutine name
+        #     name = self.__compile_name()
+        #     self.eat(CompilationEngine._OPEN_PARENTHESIS)
+        #     self.compile_parameter_list(kind)
+        #     self.eat(CompilationEngine._CLOSE_PARENTHESIS)
+        #     subroutine_body(name)
+        #     # self.wrap("subroutineBody", subroutine_body)
+        #
+        # def subroutine_body(name):
+        #     self.eat("{")
+        #     num_locals = 0
+        #     if self.peek_token("var"):
+        #         num_locals = self.compile_var_dec()
+        #     self.vm_writer.write_function("{}.{}".format(self.class_name,
+        #                                                  name), num_locals)
+        #
+        #     self.compile_statements()
+        #     # if sub_type == "void":
+        #     #     self.vm_writer.write_push("constant", 0)
+        #     self.eat("}")
+        # Handle next subroutine if there is one
         if self.peek_token(sub_regex):
-            # self.wrap("subroutineDec", subroutine_dec)
-            subroutine_dec()
-            # Handle next subroutine if there is one
             self.compile_subroutine()
+
+    def __set_pointer(self, kind):
+        if kind == "method":
+            self.vm_writer.write_push("argument", 0)
+            self.vm_writer.write_pop("pointer", 0)
+        elif kind == "constructor":
+            self.__handle_constructor()
 
     def __handle_constructor(self):
         # Allocate memory for the new object
-        var_num = self.symbol_table.var_count(
-            "static") + self.symbol_table.var_count(
-            "field")
+        var_num = self.symbol_table.var_count("this")
         self.vm_writer.write_push(CONSTANT, var_num)
         self.vm_writer.write_call("Memory.alloc", 1)
         # Set the new memory spot to this
@@ -158,13 +176,11 @@ class CompilationEngine:
         enclosing ()
         :return:
         """
-        # self.wrap("parameterList", self.__params)
         if kind == "method":
             self.symbol_table.define("this", self.class_name, "argument")
         type_reg = r"int|char|boolean|[A-Za-z_]\w*"
-        if self.peek_token(type_reg):
-            return self.__params()
-        return 0
+        while self.peek_token(type_reg):
+            self.__params()
 
     def __params(self):
         var_type = self.__compile_type(False)
@@ -172,9 +188,6 @@ class CompilationEngine:
         self.symbol_table.define(name, var_type, "argument")
         if self.peek_token(","):
             self.eat(",")
-            return 1 + self.__params()
-        else:
-            return 1
 
     def compile_var_dec(self):
         """
@@ -182,13 +195,12 @@ class CompilationEngine:
         :return:
         """
         # self.wrap("varDec", self.__comp_var_dec)
-        kind = self.eat("var")
+        self.eat("var")
         var_type = self.__compile_type(False)
-        local_num = self.__var_declare(var_type, kind)
+        self.__var_declare(var_type, "var")
         self.eat(";")
         if self.peek_token("var"):
-            return local_num + self.compile_var_dec()
-        return local_num
+            self.compile_var_dec()
 
     def compile_statements(self):
         """
@@ -496,7 +508,8 @@ class CompilationEngine:
     def __subroutine_call(self):
         if self.curr_token.get_type() == IDENTIFIER:
             if self.peek_next(CompilationEngine._OPEN_PARENTHESIS):
-                self.__subroutine_name("")
+                self.vm_writer.write_push("pointer", 0)
+                self.__subroutine_name(self.class_name, 1)
             elif self.peek_next(CompilationEngine._DOT):
                 self.__object_subroutine_call()
             else:
@@ -505,23 +518,27 @@ class CompilationEngine:
 
     def __object_subroutine_call(self):
         name = self.eat(NAME_REG)
+
+        n_args = 0
         # Push the object reference to the stack
         if self.symbol_table.kind_of(name):
             self.__write_push(name)
+            name = self.symbol_table.type_of(name)
+            n_args = 1
         self.eat(CompilationEngine._DOT)
-        self.__subroutine_name(name + ".")
+        self.__subroutine_name(name, n_args)
 
-    def __subroutine_name(self, obj_name):
+    def __subroutine_name(self, type_name, n_args):
         """
         Handles the case of subroutineName(expressionList)
         :return:
         """
-        if self.curr_token.get_type() == IDENTIFIER:
-            name = self.eat(NAME_REG)
-            self.eat(CompilationEngine._OPEN_PARENTHESIS)
-            nargs = self.compile_expression_list()
-            self.eat(CompilationEngine._CLOSE_PARENTHESIS)
-            self.vm_writer.write_call(obj_name + name, nargs)
+        name = self.eat(NAME_REG)
+        self.eat(CompilationEngine._OPEN_PARENTHESIS)
+        nargs = self.compile_expression_list()
+        self.eat(CompilationEngine._CLOSE_PARENTHESIS)
+        self.vm_writer.write_call("{}.{}".format(type_name, name), nargs +
+                                  n_args)
 
     def compile_expression_list(self):
         """

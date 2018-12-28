@@ -41,7 +41,7 @@ class SymbolTable:
                 self.subroutine_scope_table:
             if kind == STATIC:
                 self.class_scope_table.update({name:
-                                                   [var_type, kind,
+                                                   [var_type, STATIC,
                                                     self.static_index]})
                 self.static_index += 1
             elif kind == FIELD:
@@ -51,7 +51,7 @@ class SymbolTable:
                 self.field_index += 1
             elif kind == ARGUMENT:
                 self.subroutine_scope_table.update({name:
-                                                        [var_type, kind,
+                                                        [var_type, ARGUMENT,
                                                          self.arg_index]})
                 self.arg_index += 1
             elif kind == VAR:
@@ -67,15 +67,17 @@ class SymbolTable:
         :param kind: The kind to count.
         :return: the number of variables of the given kind.
         """
-        counter = 0
-        if kind == STATIC or kind == FIELD:
-            for var_list in self.class_scope_table.values():
-                if var_list[KIND_INDEX] == kind:
-                    counter += 1
+        if kind == STATIC or kind == THIS:
+            return self.__count(kind, self.class_scope_table.values())
+
         else:
-            for var_list in self.subroutine_scope_table.values():
-                if var_list[KIND_INDEX] == kind:
-                    counter += 1
+            return self.__count(kind, self.subroutine_scope_table.values())
+
+    def __count(self, kind, where):
+        counter = 0
+        for var_list in where:
+            if var_list[KIND_INDEX] == kind:
+                counter += 1
         return counter
 
     def kind_of(self, name):
