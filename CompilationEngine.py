@@ -248,28 +248,30 @@ class CompilationEngine:
         self.eat("let")
         name = self.__compile_name()
         is_array = False
-
         # Determine [expression]
         if self.peek_token(CompilationEngine._OPEN_BRACKET):
             is_array = True
-            self.__write_push(name)
-            self.__handle_array()
+            self.__handle_array(name)
         self.eat("=")
         self.compile_expression()
         # Pop the value to the spot in the memory
         if is_array:
+            self.vm_writer.write_pop("temp", 0)
+            self.vm_writer.write_pop("pointer", 1)
+            self.vm_writer.write_push("temp", 0)
             self.vm_writer.write_pop("that", 0)
         else:
             self.__write_pop(name)
         self.eat(";")
 
-    def __handle_array(self):
+    def __handle_array(self, name):
         self.eat(CompilationEngine._OPEN_BRACKET)
         self.compile_expression()
-        self.vm_writer.write_arithmetic("add")
-        # Store the new address in that segment
-        self.vm_writer.write_pop("pointer", 1)
         self.eat(CompilationEngine._CLOSE_BRACKET)
+        self.__write_push(name)
+        self.vm_writer.write_arithmetic("+")
+        # # Store the new address in that segment
+        # self.vm_writer.write_pop("pointer", 1)
 
     def compile_while(self):
         """
@@ -432,7 +434,11 @@ class CompilationEngine:
         """
         # Case: varName [ expression ]
         if self.peek_next(CompilationEngine._OPEN_BRACKET):
-            self.__var_name_array()
+            name = self.__compile_name()
+            self.__handle_array(name)
+            self.vm_writer.write_pop("pointer", 1)
+            self.vm_writer.write_push("that", 0)
+            # self.__var_name_array()
         # Case: subroutineCall:
         elif self.peek_next(CompilationEngine._OPEN_PARENTHESIS) or \
                 self.peek_next(CompilationEngine._DOT):
@@ -466,14 +472,14 @@ class CompilationEngine:
             if word == "true":
                 self.vm_writer.write_arithmetic("~")
 
-    def __var_name_array(self):
-        """
-        Handles the case of varName[expression]
-        """
-        self.eat(NAME_REG)
-        self.eat(CompilationEngine._OPEN_BRACKET)
-        self.compile_expression()
-        self.eat(CompilationEngine._CLOSE_BRACKET)
+    # def __var_name_array(self):
+    #     """
+    #     Handles the case of varName[expression]
+    #     """
+    #     self.eat(NAME_REG)
+    #     self.eat(CompilationEngine._OPEN_BRACKET)
+    #     self.compile_expression()
+    #     self.eat(CompilationEngine._CLOSE_BRACKET)
 
     def is_term(self):
         curr_type = self.peek_type()
