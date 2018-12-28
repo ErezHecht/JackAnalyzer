@@ -349,42 +349,19 @@ class CompilationEngine:
         self.vm_writer.write_goto(if_false)
         self.vm_writer.write_label(if_true)
         self.compile_statements()
-        if_end = self.__get_label("IF_END")
-        self.vm_writer.write_goto(if_end)
         self.eat("}")
         # Handle else:
-        self.vm_writer.write_label(if_false)
         if self.peek_token("else"):
+            if_end = self.__get_label("IF_END")
+            self.vm_writer.write_goto(if_end)
+            self.vm_writer.write_label(if_false)
             self.eat("else")
             self.eat("{")
             self.compile_statements()
             self.eat("}")
-        self.vm_writer.write_label(if_end)
-        #
-        # def comp_if():
-        #     self.eat("if")
-        #     self.eat(CompilationEngine._OPEN_PARENTHESIS)
-        #     # ~cond
-        #     self.compile_expression()
-        #     # self.vm_writer.write_arithmetic("~")
-        #     self.eat(CompilationEngine._CLOSE_PARENTHESIS)
-        #     self.eat("{")
-        #     l_one = self.__get_label("IF_FALSE")
-        #     self.vm_writer.write_if(l_one)
-        #     self.compile_statements()
-        #     l_two = self.__get_label("IF_END")
-        #     self.vm_writer.write_goto(l_two)
-        #     self.eat("}")
-        #     # Handle else:
-        #     self.vm_writer.write_label(l_one)
-        #     if self.peek_token("else"):
-        #         self.eat("else")
-        #         self.eat("{")
-        #         self.compile_statements()
-        #         self.eat("}")
-        #     self.vm_writer.write_label(l_two)
-
-        # self.wrap("ifStatement", comp_if)
+            self.vm_writer.write_label(if_end)
+        else:
+            self.vm_writer.write_label(if_false)
 
     def compile_expression(self):
         """
@@ -621,7 +598,7 @@ class CompilationEngine:
 
     def __get_label(self, label):
         self.label_count += 1
-        return "{}_{}".format(label, str(self.label_count))
+        return "{}{}".format(label, str(self.label_count))
 
     def __write_pop(self, name):
         self.vm_writer.write_pop(self.symbol_table.kind_of(name),
