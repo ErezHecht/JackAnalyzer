@@ -40,6 +40,8 @@ class CompilationEngine:
         """
         self.output += (self.indent * " ") + to_write + "\n"
 
+    # ========== Compilation Methods ========== #
+
     def compile_class(self):
         """
         Compiles a complete class.
@@ -64,38 +66,6 @@ class CompilationEngine:
         if self.peek_token(var_type_reg):
             self.wrap("classVarDec", self.__class_var_dec)
             self.compile_class_var_dec()
-
-    def __class_var_dec(self):
-        """
-        Compiles a single class var declaration.
-        """
-        var_type_reg = "static|field"
-        # (static|field)
-        kind = self.eat(var_type_reg)
-        # type
-        var_type = self.__compile_type(False)
-        # Compile varName combo until no more ","
-        self.__var_declare(var_type, kind)
-        self.eat(";")
-
-    def __var_declare(self, var_type, kind):
-        name = self.eat(NAME_REG)
-        self.symbol_table.define(name, var_type, kind)
-        if self.peek_token(","):
-            self.eat(",")
-            self.__var_declare(var_type, kind)
-
-    def __compile_type(self, for_function):
-        """
-        Compiles a type for a function or variable, determined by
-        a received boolean value.
-        :param for_function: True if is type of function, false otherwise.
-        :return:
-        """
-        type_reg = r"int|char|boolean|[A-Za-z_]\w*"
-        if for_function:
-            type_reg += "|void"
-        return self.eat(type_reg)
 
     def compile_subroutine(self):
         """
@@ -148,28 +118,6 @@ class CompilationEngine:
         if self.peek_token(sub_regex):
             self.compile_subroutine()
 
-    def __set_pointer(self, kind):
-        if kind == "method":
-            self.vm_writer.write_push("argument", 0)
-            self.vm_writer.write_pop("pointer", 0)
-        elif kind == "constructor":
-            self.__handle_constructor()
-
-    def __handle_constructor(self):
-        # Allocate memory for the new object
-        var_num = self.symbol_table.var_count("this")
-        self.vm_writer.write_push(CONSTANT, var_num)
-        self.vm_writer.write_call("Memory.alloc", 1)
-        # Set the new memory spot to this
-        self.vm_writer.write_pop("pointer", 0)
-
-    def __compile_name(self):
-        if self.peek_type() == IDENTIFIER:
-            return self.eat(NAME_REG)
-        else:
-            print("ERROR: Identifier Expected")
-            exit(-1)
-
     def compile_parameter_list(self, kind):
         """
         Compiles a possibly empty parameter list, not including the
@@ -181,13 +129,6 @@ class CompilationEngine:
         type_reg = r"int|char|boolean|[A-Za-z_]\w*"
         while self.peek_token(type_reg):
             self.__params()
-
-    def __params(self):
-        var_type = self.__compile_type(False)
-        name = self.eat(NAME_REG)
-        self.symbol_table.define(name, var_type, "argument")
-        if self.peek_token(","):
-            self.eat(",")
 
     def compile_var_dec(self):
         """
@@ -224,27 +165,17 @@ class CompilationEngine:
     def compile_do(self):
         """
         Compiles a do statement
-        :return:
         """
-
-        def do():
-            self.eat("do")
-            self.__subroutine_call()
-            # Since we don't use the return value, we pop it to temp
-            self.vm_writer.write_pop("temp", 0)
-            self.eat(";")
-
-        self.wrap("doStatement", do)
+        self.eat("do")
+        self.__subroutine_call()
+        # Since we don't use the return value, we pop it to temp
+        self.vm_writer.write_pop("temp", 0)
+        self.eat(";")
 
     def compile_let(self):
         """
         Compiles a let statement
-        :return:
         """
-        # self.wrap("letStatement", self.__comp_let)
-        self.__comp_let()
-
-    def __comp_let(self):
         self.eat("let")
         name = self.__compile_name()
         is_array = False
@@ -263,15 +194,6 @@ class CompilationEngine:
         else:
             self.__write_pop(name)
         self.eat(";")
-
-    def __handle_array(self, name):
-        self.eat(CompilationEngine._OPEN_BRACKET)
-        self.compile_expression()
-        self.eat(CompilationEngine._CLOSE_BRACKET)
-        self.__write_push(name)
-        self.vm_writer.write_arithmetic("+")
-        # # Store the new address in that segment
-        # self.vm_writer.write_pop("pointer", 1)
 
     def compile_while(self):
         """
@@ -294,44 +216,20 @@ class CompilationEngine:
         self.vm_writer.write_goto(loop_label)
         self.vm_writer.write_label(exit_label)
         self.eat("}")
-        # def comp_while():
-        #     self.eat("while")
-        #     loop_label = self.__get_label("WHILE_START")
-        #     exit_label = self.__get_label("WHILE_END")
-        #     self.vm_writer.write_label(loop_label)
-        #     self.eat(CompilationEngine._OPEN_PARENTHESIS)
-        #     # Compute ~condition
-        #     self.compile_expression()
-        #     self.vm_writer.write_arithmetic("~")
-        #     # if ~condition exit loop
-        #     self.vm_writer.write_if(exit_label)
-        #     self.eat(CompilationEngine._CLOSE_PARENTHESIS)
-        #     self.eat("{")
-        #     self.compile_statements()
-        #     self.vm_writer.write_goto(loop_label)
-        #     self.vm_writer.write_label(exit_label)
-        #     self.eat("}")
-
-        # self.wrap("whileStatement", comp_while)
 
     def compile_return(self):
         """
         Compiles a return statement.
-        :return:
         """
-
-        def comp_return():
-            self.eat("return")
-            # if next is expression:
-            if self.is_term():
-                self.compile_expression()
-            else:
-                # Void function - push 0
-                self.vm_writer.write_push(CONSTANT, 0)
-            self.vm_writer.write_return()
-            self.eat(";")
-
-        self.wrap("returnStatement", comp_return)
+        self.eat("return")
+        # if next is expression:
+        if self.__is_term():
+            self.compile_expression()
+        else:
+            # Void function - push 0
+            self.vm_writer.write_push(CONSTANT, 0)
+        self.vm_writer.write_return()
+        self.eat(";")
 
     def compile_if(self):
         """
@@ -420,6 +318,89 @@ class CompilationEngine:
         term()
         # self.wrap("term", term)
 
+    def compile_expression_list(self):
+        """
+        Compiles a possibly empty list of comma separated expressions
+        :return:
+        """
+
+        def exp_list():
+            count = 0
+            if self.__is_term():
+                self.compile_expression()
+                count += 1
+                while self.peek_token(","):
+                    self.eat(",")
+                    self.compile_expression()
+                    count += 1
+            return count
+
+        return exp_list()
+        # self.wrap("expressionList", exp_list)
+
+    # ========== Compilation Helper ========== #
+
+    def __class_var_dec(self):
+        """
+        Compiles a single class var declaration.
+        """
+        var_type_reg = "static|field"
+        # (static|field)
+        kind = self.eat(var_type_reg)
+        # type
+        var_type = self.__compile_type(False)
+        # Compile varName combo until no more ","
+        self.__var_declare(var_type, kind)
+        self.eat(";")
+
+    def __var_declare(self, var_type, kind):
+        name = self.eat(NAME_REG)
+        self.symbol_table.define(name, var_type, kind)
+        if self.peek_token(","):
+            self.eat(",")
+            self.__var_declare(var_type, kind)
+
+    def __compile_type(self, for_function):
+        """
+        Compiles a type for a function or variable, determined by
+        a received boolean value.
+        :param for_function: True if is type of function, false otherwise.
+        :return:
+        """
+        type_reg = r"int|char|boolean|[A-Za-z_]\w*"
+        if for_function:
+            type_reg += "|void"
+        return self.eat(type_reg)
+
+    def __set_pointer(self, kind):
+        if kind == "method":
+            self.vm_writer.write_push("argument", 0)
+            self.vm_writer.write_pop("pointer", 0)
+        elif kind == "constructor":
+            self.__handle_constructor()
+
+    def __handle_constructor(self):
+        # Allocate memory for the new object
+        var_num = self.symbol_table.var_count("this")
+        self.vm_writer.write_push(CONSTANT, var_num)
+        self.vm_writer.write_call("Memory.alloc", 1)
+        # Set the new memory spot to this
+        self.vm_writer.write_pop("pointer", 0)
+
+    def __compile_name(self):
+        if self.peek_type() == IDENTIFIER:
+            return self.eat(NAME_REG)
+        else:
+            print("ERROR: Identifier Expected")
+            exit(-1)
+
+    def __params(self):
+        var_type = self.__compile_type(False)
+        name = self.eat(NAME_REG)
+        self.symbol_table.define(name, var_type, "argument")
+        if self.peek_token(","):
+            self.eat(",")
+
     def __handle_unary_op(self):
         command = self.eat("-|~")
         self.compile_term()
@@ -472,16 +453,7 @@ class CompilationEngine:
             if word == "true":
                 self.vm_writer.write_arithmetic("~")
 
-    # def __var_name_array(self):
-    #     """
-    #     Handles the case of varName[expression]
-    #     """
-    #     self.eat(NAME_REG)
-    #     self.eat(CompilationEngine._OPEN_BRACKET)
-    #     self.compile_expression()
-    #     self.eat(CompilationEngine._CLOSE_BRACKET)
-
-    def is_term(self):
+    def __is_term(self):
         curr_type = self.peek_type()
         return curr_type == STRING_CONST or curr_type == INT_CONST or \
                curr_type == KEYWORD or curr_type == IDENTIFIER or \
@@ -523,25 +495,14 @@ class CompilationEngine:
         self.vm_writer.write_call("{}.{}".format(type_name, name), nargs +
                                   n_args)
 
-    def compile_expression_list(self):
-        """
-        Compiles a possibly empty list of comma separated expressions
-        :return:
-        """
+    def __handle_array(self, name):
+        self.eat(CompilationEngine._OPEN_BRACKET)
+        self.compile_expression()
+        self.eat(CompilationEngine._CLOSE_BRACKET)
+        self.__write_push(name)
+        self.vm_writer.write_arithmetic("+")
 
-        def exp_list():
-            count = 0
-            if self.is_term():
-                self.compile_expression()
-                count += 1
-                while self.peek_token(","):
-                    self.eat(",")
-                    self.compile_expression()
-                    count += 1
-            return count
-
-        return exp_list()
-        # self.wrap("expressionList", exp_list)
+    # ========== XML Handling ========== #
 
     def wrap(self, section_name, func):
         """
@@ -556,6 +517,8 @@ class CompilationEngine:
         func()
         self.indent -= 2
         self.write("</{}>".format(section_name))
+
+    # ========== Token Handling ========== #
 
     def eat(self, token):
         """
@@ -601,6 +564,8 @@ class CompilationEngine:
         self.tokenizer.advance()
         if self.tokenizer.has_more_tokens():
             self.curr_token = self.tokenizer.get_current_token()
+
+    # ========== VM Helper ========== #
 
     def __get_label(self, label):
         self.label_count += 1
